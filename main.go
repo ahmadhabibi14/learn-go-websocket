@@ -7,22 +7,29 @@ import (
 	"github.com/ahmadhabibi14/learn-go-websocket/pkg/socket"
 )
 
-// define our websocket endpoint
-func serveWs(w http.ResponseWriter, r *http.Request) {
-	ws, err := socket.Upgrade(w, r)
+func serveWs(pool *socket.Pool, w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Websocket endpoint hit")
+	conn, err := socket.Upgrade(w, r)
 	if err != nil {
-		fmt.Fprintf(w, "%+V\n", err)
+		fmt.Fprintf(w, "%+v\n", err)
 	}
-	go socket.Writer(ws)
-	socket.Reader(ws)
+
+	client := &socket.Client{
+		Conn: conn,
+		Pool: pool,
+	}
+
+	pool.Register <- client
+	client.Read()
 }
 
 func setupRoutes() {
-	http.HandleFunc(`/`, func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Simple server")
-	})
+	pool := socket.NewPool()
+	go pool.Start()
 
-	http.HandleFunc(`/ws`, serveWs)
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		serveWs(pool, w, r)
+	})
 }
 
 func main() {
